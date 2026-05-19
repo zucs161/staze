@@ -1,4 +1,5 @@
 use std::io;
+use std::time::Duration;
 
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::{DefaultTerminal, Frame};
@@ -10,7 +11,7 @@ mod db;
 
 use db::Db;
 use home::{Home, HomeAction};
-use session::{Session, SessionAction}
+use session::{Session, SessionAction};
 
 enum Screen {
     Home(Home),
@@ -47,31 +48,30 @@ impl App {
     }
 
     fn handle_events(&mut self) -> io::Result<()> {
-        match event::read()? {
-            Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                match key_event.code {
-                    KeyCode::Char('q') => self.exit = true,
-                    key => match &mut self.current_screen {
-                        Screen::Home(home) => match home.handle_key(key) {
-                            HomeAction::StartSession => self.current_screen = Screen::Session(Session::default()),
-                            HomeAction::ViewStats => { /* TODO: new view */ }
-                            HomeAction::None => {}
-                        },
-                        Screen::Session(session) => match session.handle_key(key) {
-                            SessionAction::Stop => {
-                                let (start, duration) = session.stop();
-                                self.db.save_session(start, duration);
-                                
-                                self.current_screen = Screen::Home(Home::default());
-                                // Register duration -> send it to db
-                                // Delete the Session memory?
+        if event::poll(Duration::from_millis(500))? {
+            match event::read()? {
+                Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
+                    match key_event.code {
+                        KeyCode::Char('q') => self.exit = true,
+                        key => match &mut self.current_screen {
+                            Screen::Home(home) => match home.handle_key(key) {
+                                HomeAction::StartSession => self.current_screen = Screen::Session(Session::new()),
+                                HomeAction::ViewStats => { /* TODO: new view */ }
+                                HomeAction::None => {}
+                            },
+                            Screen::Session(session) => match session.handle_key(key) {
+                                SessionAction::Stop => {
+                                    let (start, duration) = session.stop();
+                                    self.db.save_session(start, duration).expect("failed to save session");
+                                    self.current_screen = Screen::Home(Home::default());
+                                }
+                                SessionAction::None => {}
                             }
-                            SessionAction::None => {}
-                        }
-                    },
+                        },
+                    }
                 }
+                _ => {}
             }
-            _ => {}
         }
         Ok(())
     }

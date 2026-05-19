@@ -13,8 +13,8 @@ use ratatui::{
 
 #[derive(Debug)]
 pub struct Session {
-    pub tag: String,
-    is_tag_default: bool,
+    pub label: String,
+    is_label_default: bool,
     editing: bool,
     selected: u8,
     start: Instant,
@@ -29,8 +29,8 @@ pub enum SessionAction {
 impl Session {
     pub fn new() -> Self {
         Self {
-            tag: "wonderful-thinking-session".to_string(),
-            is_tag_default: true,
+            label: "wonderful-thinking-session".to_string(),
+            is_label_default: true,
             editing: false,
             selected: 1,
             start: Instant::now(),
@@ -57,13 +57,13 @@ impl Session {
                 self.selected = 1;
                 SessionAction::None
             }
-            // Tag edition
+            // Label edition
             KeyCode::Char(c) if self.editing => {
-                self.tag.push(c);
+                self.label.push(c);
                 SessionAction::None
             }
             KeyCode::Backspace if self.editing => {
-                self.tag.pop();
+                self.label.pop();
                 SessionAction::None
             }
             KeyCode::Esc | KeyCode::Enter if self.editing => {
@@ -77,9 +77,9 @@ impl Session {
                 1 if !self.editing => {
                     self.editing = true;
                     // Clear the default placeholder value
-                    if self.is_tag_default {
-                        self.tag.clear();
-                        self.is_tag_default = false;
+                    if self.is_label_default {
+                        self.label.clear();
+                        self.is_label_default = false;
                     }
                     SessionAction::None
             },
@@ -89,9 +89,9 @@ impl Session {
         }
     }
 
-    pub fn stop(&mut self) -> (u64, u64) {
+    pub fn stop(&mut self) -> (u64, u64, String) {
         let duration: u64 = self.start.elapsed().as_secs();
-        (self.started_at, duration)
+        (self.started_at, duration, self.label.clone())
     }
 }
 
@@ -115,7 +115,7 @@ impl Widget for &Session {
         let inner = block.inner(area);
         block.render(area, buf);
 
-        let [timer_area, tag_area, stop_area] = Layout::vertical([
+        let [timer_area, label_area, stop_area] = Layout::vertical([
             Constraint::Min(0),
             Constraint::Length(3),
             Constraint::Length(3),
@@ -127,19 +127,19 @@ impl Widget for &Session {
             .render(timer_area, buf);
 
         let tag_label = if self.editing {
-            format!(" < {}_ > ", self.tag)
+            format!(" < {}_ > ", self.label)
         } else {
-            format!(" < {} > ", self.tag)
+            format!(" < {} > ", self.label)
         };
 
-        let tag_style = if self.selected == 1 { Style::new().reversed() } else { Style::new() };
+        let label_style = if self.selected == 1 { Style::new().reversed() } else { Style::new() };
         Paragraph::new(Line::from(vec![
             " [ ".into(),
-            tag_label.set_style(tag_style),
+            tag_label.set_style(label_style),
             " ] ".into(),
         ]))
         .centered()
-        .render(tag_area, buf);
+        .render(label_area, buf);
 
         let stop_style = if self.selected == 0 { Style::new().reversed() } else { Style::new() };
         Paragraph::new(Line::from(" [ Stop ] ".set_style(stop_style)))

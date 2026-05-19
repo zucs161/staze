@@ -61,8 +61,8 @@ impl App {
                             },
                             Screen::Session(session) => match session.handle_key(key) {
                                 SessionAction::Stop => {
-                                    let (start, duration) = session.stop();
-                                    self.db.save_session(start, duration).expect("failed to save session");
+                                    let (start, duration, label) = session.stop();
+                                    self.db.save_session(start, duration, label).expect("failed to save session");
                                     self.current_screen = Screen::Home(Home::default());
                                 }
                                 SessionAction::None => {}

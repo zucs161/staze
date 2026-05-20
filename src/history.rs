@@ -6,7 +6,7 @@ use ratatui::{
     style::{Style, Styled, Stylize},
     symbols::border,
     text::Line,
-    widgets::{Bar, BarChart, BarGroup, Block, Paragraph, Widget},
+    widgets::{Bar, BarChart, BarGroup, Block, List, ListItem, ListState, Paragraph, StatefulWidget, Widget},
 };
 
 use chrono::DateTime;
@@ -30,22 +30,28 @@ pub struct History {
     sessions: Vec<SessionRecord>,
     selected: u8,
     is_label_selected: bool,
-    label: String,
+    picking_label: bool,
+    label: Option<String>,
+    suggestions: Vec<String>,
+    suggestion_state: ListState,
 }
 
 pub enum HistoryAction {
     None,
     Stop,
-    Query(u8, String),
+    Query(u8, Option<String>),
 }
 
 impl History {
     pub fn new(sessions: Vec<SessionRecord>) -> Self {
         Self {
-            selected: 1,  // default view to month
+            selected: 1,
             sessions,
             is_label_selected: false,
-            label: "no label selected".to_string(),
+            picking_label: false,
+            label: None,
+            suggestions: vec![],
+            suggestion_state: ListState::default(),
         }
     }
 
@@ -53,9 +59,46 @@ impl History {
         self.sessions = sessions;
     }
 
+    pub fn update_suggestions(&mut self, suggestions: Vec<String>) {
+        self.suggestions = suggestions;
+        self.suggestion_state.select(None);
+    }
+
     pub fn handle_key(&mut self, key: KeyCode) -> HistoryAction {
         match key {
-            // Navigate between stats views
+            // Open suggestions dropdown
+            KeyCode::Enter if self.is_label_selected && !self.picking_label => {
+                self.picking_label = true;
+                HistoryAction::None
+            }
+            // Navigate suggestions
+            KeyCode::Down if self.picking_label => {
+                self.suggestion_state.select_next();
+                HistoryAction::None
+            }
+            KeyCode::Up if self.picking_label => {
+                self.suggestion_state.select_previous();
+                HistoryAction::None
+            }
+            // Pick a suggestion
+            KeyCode::Enter if self.picking_label => {
+                if let Some(i) = self.suggestion_state.selected() {
+                    if let Some(picked) = self.suggestions.get(i) {
+                        self.label = Some(picked.clone());
+                    }
+                }
+                self.picking_label = false;
+                self.suggestion_state.select(None);
+                HistoryAction::Query(self.selected, self.label.clone())
+            }
+            // Cancel — close without selecting, clear filter
+            KeyCode::Esc if self.picking_label => {
+                self.picking_label = false;
+                self.label = None;
+                self.suggestion_state.select(None);
+                HistoryAction::Query(self.selected, None)
+            }
+            // Period navigation
             KeyCode::Left => {
                 self.selected = self.selected.saturating_sub(1);
                 HistoryAction::Query(self.selected, self.label.clone())
@@ -64,7 +107,7 @@ impl History {
                 self.selected = (self.selected + 1).min(2);
                 HistoryAction::Query(self.selected, self.label.clone())
             }
-            // Navigate between stats & label
+            // Row navigation
             KeyCode::Down => {
                 self.is_label_selected = true;
                 HistoryAction::None
@@ -84,9 +127,10 @@ impl History {
     }
 }
 
-impl Widget for &mut History {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        // Main block
+impl StatefulWidget for &mut History {
+    type State = ListState;
+
+    fn render(self, area: Rect, buf: &mut Buffer, _state: &mut ListState) {
         let title = Line::from(" Have you worked well? ".bold());
         let instructions = Line::from(vec![
             " Navigate ".into(),
@@ -103,16 +147,22 @@ impl Widget for &mut History {
         let inner = block.inner(area);
         block.render(area, buf);
 
-        let [stats_area, graph_area] = Layout::vertical([
+        let [stats_area, suggestions_area, graph_area] = Layout::vertical([
             Constraint::Length(5),
+            Constraint::Length(if self.picking_label && !self.suggestions.is_empty() {
+                self.suggestions.len() as u16 + 2
+            } else { 0 }),
             Constraint::Fill(1),
         ])
         .areas(inner);
 
-        // Label
-        let tag_label = format!(" < {} > ", self.label);
-        let label_style = if self.is_label_selected { Style::new().reversed() } else { Style::new() };
         let style = |i| if self.selected == i && !self.is_label_selected { Style::new().reversed() } else { Style::new() };
+        let label_style = if self.is_label_selected { Style::new().reversed() } else { Style::new() };
+        let tag_label = match &self.label {
+            Some(l) => format!(" < {} > ", l),
+            None    => " [ all labels ] ".to_string(),
+        };
+
         let stats_content = vec![
             Line::from(vec![
                 " [ Week ] ".set_style(style(0)),
@@ -133,6 +183,16 @@ impl Widget for &mut History {
             .block(Block::bordered().title(" Stats "))
             .render(stats_area, buf);
 
+        if self.picking_label && !self.suggestions.is_empty() {
+            let items: Vec<ListItem> = self.suggestions.iter()
+                .map(|l| ListItem::new(l.as_str()))
+                .collect();
+            let list = List::new(items)
+                .highlight_style(Style::new().reversed())
+                .block(Block::bordered().title(" Filter by label "));
+            StatefulWidget::render(list, suggestions_area, buf, &mut self.suggestion_state);
+        }
+
         if self.sessions.is_empty() {
             Paragraph::new("No session recorded for this period.")
                 .centered()
@@ -143,7 +203,7 @@ impl Widget for &mut History {
 
         let mut by_day: std::collections::BTreeMap<i64, i64> = std::collections::BTreeMap::new();
         for s in &self.sessions {
-            let day = (s.started_at / 86400) * 86400;  // truncate timestamp to midnight UTC
+            let day = (s.started_at / 86400) * 86400;
             *by_day.entry(day).or_insert(0) += s.duration_sec;
         }
 

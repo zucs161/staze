@@ -51,7 +51,7 @@ impl App {
         match &mut self.current_screen {
             Screen::Home(home) => frame.render_widget(home, frame.area()),
             Screen::Session(session) => frame.render_stateful_widget(session, frame.area(), &mut ListState::default()),
-            Screen::History(history) => frame.render_widget(history, frame.area()),
+            Screen::History(history) => frame.render_stateful_widget(history, frame.area(), &mut ListState::default()),
         }
     }
 
@@ -69,11 +69,14 @@ impl App {
                                     let suggestions = self.db.get_labels("").expect(fail_load_label);
                                     Screen::Session(Session::new(suggestions))
                                 },
-                                HomeAction::ViewHistory => self.current_screen = {
+                                HomeAction::ViewHistory => {
                                     let month_filter = SessionFilter { since: Some(since_days(30)), tag: None };
                                     let r = self.db.get_sessions(&month_filter).expect(fail_load_history);
-                                    Screen::History(History::new(r))
-                                },
+                                    let suggestions = self.db.get_labels("").expect(fail_load_label);
+                                    let mut h = History::new(r);
+                                    h.update_suggestions(suggestions);
+                                    self.current_screen = Screen::History(h);
+                                }
                                 HomeAction::None => {}
                             },
                             Screen::Session(session) => match session.handle_key(key) {
@@ -90,9 +93,9 @@ impl App {
                             },
                             Screen::History(hist) => match hist.handle_key(key) {
                                 HistoryAction::Stop => self.current_screen = Screen::Home(Home::default()),
-                                HistoryAction::Query(selected, _label) => {
+                                HistoryAction::Query(selected, label) => {
                                     let days = match selected { 0 => 7, 1 => 30, _ => 365 };
-                                    let filter = SessionFilter { since: Some(since_days(days)), tag: None };
+                                    let filter = SessionFilter { since: Some(since_days(days)), tag: label };
                                     let r = self.db.get_sessions(&filter).expect(fail_load_history);
                                     hist.update(r);
                                 }

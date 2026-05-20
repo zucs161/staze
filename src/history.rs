@@ -2,11 +2,12 @@ use crossterm::event::KeyCode;
 
 use ratatui::{
     buffer::Buffer,
-    layout::Rect,
-    style::{Style, Styled, Stylize},
+    layout::{Layout, Constraint, Rect},
+    style::{Style, Styled, Stylize, Color},
+    symbols,
     symbols::border,
     text::Line,
-    widgets::{Block, Paragraph, Widget},
+    widgets::{Block, Paragraph, Widget, Chart, Dataset, Axis, GraphType},
 };
 
 use crate::db::SessionRecord;
@@ -41,6 +42,13 @@ impl History {
         self.sessions = sessions;
     }
 
+    pub fn sessions_to_data(&self) -> Vec<(f64, f64)> {
+        let data: Vec<(f64, f64)> = self.sessions.iter()
+            .map(|s| (s.started_at as f64, s.duration_sec as f64))
+            .collect();
+        return data
+    }
+
     pub fn handle_key(&mut self, key: KeyCode) -> HistoryAction {
         match key {
             KeyCode::Left => {
@@ -55,10 +63,7 @@ impl History {
             _ => HistoryAction::None,
         }
     }
-
-    fn get_sessions_nb(&self) -> usize {
-        return self.sessions.len()
-    }
+    
     fn get_total_worked(&self) -> i64 {
         self.sessions.iter().map(|s| s.duration_sec).sum()
     }
@@ -66,6 +71,7 @@ impl History {
 
 impl Widget for &History {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        // Main block
         let title = Line::from(" Have you worked well? ".bold());
         let instructions = Line::from(vec![
             " Navigate ".into(),
@@ -75,11 +81,20 @@ impl Widget for &History {
             " Quit ".into(),
             "<Q> ".blue().bold(),
         ]);
-
+        
         let block = Block::bordered()
             .title(title.centered())
             .title_bottom(instructions.centered())
             .border_set(border::THICK);
+
+        let inner = block.inner(area);
+        block.render(area, buf);
+
+        // Clean visual separation between navigation, stats and graph
+        let [stats_area, graph_area] = Layout::vertical([
+            Constraint::Length(5),
+            Constraint::Fill(1),
+        ]).areas(inner);
 
         let style = |i| if self.selected == i {Style::new().reversed()} else {Style::new()};
         let week_style = style(0);
@@ -88,7 +103,7 @@ impl Widget for &History {
         
         let total_duration = self.get_total_worked();
 
-        let content = vec![
+        let stats_content = vec![
             Line::from(vec![
             " [ Week ] ".set_style(week_style),
             "   ".into(),
@@ -99,10 +114,40 @@ impl Widget for &History {
             Line::from(vec!["Total Worked:".into(), format_duration(total_duration).bold()]),
             ];
         
-        Paragraph::new(content)
+        // Stats
+        Paragraph::new(stats_content)
             .centered()
-            .block(block)
-            .render(area, buf);
+            .block(Block::bordered().title(" Stats "))
+            .render(stats_area, buf);
+
+        // Graph
+        let data = self.sessions_to_data();
+
+        let x_min = data.iter().map(|(x, _)| *x).fold(f64::MAX, f64::min);
+        let x_max = data.iter().map(|(x, _)| *x).fold(f64::MIN, f64::max);
+        let y_max = data.iter().map(|(_, y)| *y).fold(f64::MIN, f64::max);
+
+        let dataset = Dataset::default()
+            .name("Sessions")
+            .marker(symbols::Marker::Dot)
+            .graph_type(GraphType::Line)
+            .style(Style::default().fg(Color::Cyan))
+            .data(&data);
+
+        let time_label = match self.selected {0 => "a week ago", 1 => "a month ago", _ => "a year ago"};
+        let chart = Chart::new(vec![dataset])
+            .x_axis(Axis::default()
+                .title("Date")
+                .bounds([x_min, x_max])
+                .labels(vec![time_label.bold(), "today".bold()]))
+            .y_axis(Axis::default()
+                .title("Duration")
+                .bounds([0.0, y_max])
+                .labels(vec!["0".bold(), format_duration((y_max / 2.0) as i64).bold(), format_duration(y_max as i64).bold()]))
+            .block(Block::bordered().title(" Timeline "));
+        
+        chart.render(graph_area, buf);
+
     }
     
 }

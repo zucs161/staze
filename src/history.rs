@@ -31,7 +31,6 @@ pub struct History {
     selected: u8,
     is_label_selected: bool,
     label: String,
-    editing: bool,
 }
 
 pub enum HistoryAction {
@@ -47,7 +46,6 @@ impl History {
             sessions,
             is_label_selected: false,
             label: "no label selected".to_string(),
-            editing: false,
         }
     }
 
@@ -112,12 +110,9 @@ impl Widget for &mut History {
         .areas(inner);
 
         // Label
-        let tag_label = if self.editing {
-            format!(" < {}_ > ", self.label)
-        } else {
-            format!(" < {} > ", self.label)
-        };
-        let style = |i| if self.selected == i { Style::new().reversed() } else { Style::new() };
+        let tag_label = format!(" < {} > ", self.label);
+        let label_style = if self.is_label_selected { Style::new().reversed() } else { Style::new() };
+        let style = |i| if self.selected == i && !self.is_label_selected { Style::new().reversed() } else { Style::new() };
         let stats_content = vec![
             Line::from(vec![
                 " [ Week ] ".set_style(style(0)),
@@ -126,7 +121,7 @@ impl Widget for &mut History {
                 "   ".into(),
                 " [ Year ] ".set_style(style(2)),
             ]),
-            Line::from(vec![tag_label.into()]),
+            Line::from(vec![tag_label.set_style(label_style)]),
             Line::from(vec![
                 "Total Worked: ".into(),
                 format_duration(self.get_total_worked()).bold(),

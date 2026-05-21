@@ -77,11 +77,10 @@ impl Session {
                 SessionAction::None
             }
             KeyCode::Enter if self.editing && self.suggestion_state.selected().is_some() => {
-                if let Some(i) = self.suggestion_state.selected() {
-                    if let Some(picked) = self.suggestions.get(i) {
+                if let Some(i) = self.suggestion_state.selected()
+                    && let Some(picked) = self.suggestions.get(i) {
                         self.label = Some(picked.clone());
                     }
-                }
                 self.editing = false;
                 self.suggestion_state.select(None);
                 SessionAction::None

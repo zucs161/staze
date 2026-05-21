@@ -89,11 +89,10 @@ impl History {
             }
             // Pick a suggestion
             KeyCode::Enter if self.picking_label => {
-                if let Some(i) = self.suggestion_state.selected() {
-                    if let Some(picked) = self.suggestions.get(i) {
+                if let Some(i) = self.suggestion_state.selected()
+                    && let Some(picked) = self.suggestions.get(i) {
                         self.label = Some(picked.clone());
                     }
-                }
                 self.picking_label = false;
                 self.suggestion_state.select(None);
                 HistoryAction::Query(self.selected, self.label.clone())

@@ -9,6 +9,12 @@ repository = "https://github.com/SimonBure/staze"
 homepage = "https://github.com/SimonBure/staze"
 keywords = ["tui", "cli", "time-tracker", "productivity"]
 
+[package.metadata.wix]
+upgrade-guid = "C507BEAB-D1B8-48F5-B025-97F2658EFAC1"
+path-guid = "5317DAD4-8B00-4B09-B439-B3A9C9BFF726"
+license = false
+eula = false
+
 [dependencies]
 crossterm = "0.29.0"
 ratatui = "0.30.0"
@@ -23,3 +29,8 @@ codegen-units = 1
 lto = true
 opt-level = "s"
 strip = true
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"

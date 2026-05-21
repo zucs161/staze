@@ -1,3 +1,4 @@
+[![Crates.io](https://img.shields.io/crates/v/staze.svg)](https://crates.io/crates/staze)
 # staze
 
 A terminal time tracker. Start sessions, label them, and review your time as a bar chart — all from the keyboard.

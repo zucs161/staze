@@ -1,7 +1,9 @@
 [![Crates.io](https://img.shields.io/crates/v/staze.svg)](https://crates.io/crates/staze)
 # staze
 
-A terminal time tracker. Start sessions, label them, and review your time as a bar chart — all from the keyboard. Adpot Staz, a cute creature that live with your work.
+A terminal time tracker. Start sessions, label them, and review your time as a bar chart — all from the keyboard. 
+
+Cute bonus: you'll adpot **Staz**, a small creature that lives as your work.
 
 <!-- Demo gif — render with `vhs demo.tape` (https://github.com/charmbracelet/vhs) -->
 ![staze demo](demo.gif)
